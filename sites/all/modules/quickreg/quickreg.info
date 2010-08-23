@@ -1,0 +1,6 @@
+; $Id webthingee $
+
+name = "QuickReg"
+description = "Cool Quick Reg"
+core = 6.x
+package = "Other"

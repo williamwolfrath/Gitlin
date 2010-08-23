@@ -1,0 +1,82 @@
+#dmodal {
+	display: none;
+	border: 5px solid #ccc;
+	background-color: #aaa;
+	padding: 10px 20px;
+}
+
+#simplemodal-container {
+  display: none;
+  width: 480px !important;
+  height: 480px !important;
+  left: 50% !important;
+  top: 50% !important;
+  margin-left: -240px;
+  margin-top: -240px;
+}
+
+#dmodal .legal-terms {
+	height: 80px;
+	overflow: auto;
+}
+
+#dmodal p {
+  padding: 0;
+  margin: 0;
+}
+.reg-header-title {
+  text-align: center;
+  margin: 0 0 5px 0;
+  font-size: 18px;
+  color: black;
+}
+
+
+#simplemodal-container a.modalCloseImg {
+	background: transparent url(../images/x.png) no-repeat; /* adjust url as required */
+	width:25px;
+	height:29px;
+	display:inline;
+	z-index:3200;
+	position:absolute;
+	top:-8px;
+	right:-8px;
+	cursor:pointer;
+}
+
+#dmodal input.form-text, #dmodal textarea {
+	border:2px solid #999;
+	font-size:15px;
+	height:auto;
+	padding:10px;
+	width: 400px;
+}
+#dmodal #registration_form .reg-header-text {
+  background: #555;
+  padding: 5px 15px;
+  border: 2px solid #888;
+  width: 400px;
+  font-size: 13px;
+  color: white;
+
+}
+.blurr {
+	color: #aaa;
+}
+
+#dmodal #edit-pass-wrapper {display: none;}
+#dmodal #edit-honeytrap-wrapper {display: none;}
+
+form li {
+	line-height: 1.5;
+	margin-bottom: 1.5em;
+	position: relative;
+}
+
+form label.overlayed {
+	position: absolute;
+	top: .15em;
+	left: .5em;
+	white-space: nowrap;
+	color: #999;
+}

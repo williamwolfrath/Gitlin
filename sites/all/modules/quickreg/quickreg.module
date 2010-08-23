@@ -1,0 +1,436 @@
+<?php // $Id$
+
+/**
+ * Implementation of hook_menu
+ */
+function quickreg_menu() {
+  $items['admin/settings/quickreg'] = array(
+    'title' => 'QuickReg',
+    'description' => 'QuickReg Settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('quickreg_admin_settings'),
+    'access arguments' => array('access administration pages'),
+  );
+
+  return $items;
+}
+
+function quickreg_showcheck() {
+  
+  $haystack = array('73047', 'user');
+  
+  // views
+	if (arg(0) !='node') {
+		//what to find -
+		$needle = arg(0);	
+	}
+	// nodes
+  if (arg(0) =='node') {
+		//what to find -
+		$needle = arg(1);
+	}
+  
+  if(in_array($needle, $haystack)) {
+    return FALSE;
+  }
+  else {
+    return TRUE;
+  }	 
+}
+
+/**
+ * Settings page for the custom module
+ */
+function quickreg_admin_settings() {
+  $onoffarray = array(
+  	0 => t('Off'),
+  	1 => t('On'),
+  );
+  
+  $form['quickreg']['qrtitle'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Title'),
+    '#default_value' => variable_get('qrtitle', ''),
+  );
+  $form['quickreg']['promotext'] = array(
+    '#type'          => 'textarea',
+    '#title'         => t('Promotional Text'),
+    '#default_value' => variable_get('promotext', ''),
+  );
+  $form['quickreg']['quickreg_details'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Quick Reg Details'), 
+    '#collapsible' => TRUE, 
+    '#collapsed' => FALSE
+  );
+  $form['quickreg']['quickreg_details']['minimum'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Number of Visits to Start Showing Quick Reg'),
+    '#default_value' => variable_get('minimum', 4),
+  );
+  $form['quickreg']['quickreg_details']['maximum'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Number of Visits to Stop Showing Quick Reg'),
+    '#default_value' => variable_get('maximum', 20),
+  );
+    $form['quickreg']['quickreg_details']['enabled'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Enabled'),
+    //'#description'   => t(''),
+    '#options'			 => $onoffarray,
+    '#default_value' => variable_get('enabled', 0), // array($key, $value)),
+  );
+  $form['quickreg']['quickreg_details']['testmode'] = array(
+    '#type'          => 'checkbox',
+    '#title'         => t('Test Mode'),
+    //'#description'   => t(''),
+    '#options'			 => $onoffarray,
+    '#default_value' => variable_get('testmode', 0), // array($key, $value)),
+  );
+
+  return system_settings_form($form);
+}
+
+
+function quickreg_init() {
+  global $_showreg;
+  global $user;
+  $admin = user_access('administer users');
+  $qrenabled = variable_get('enabled', '');
+  $qrtestmode = variable_get('testmode', '');
+  $qrmax = variable_get('maximum', '');
+  $qrmin = variable_get('minimum', '');
+  $sessionvisits = $_SESSION['visits'];
+  $_showreg = FALSE; //set the display to false by default
+	//$_SESSION['visits'] = 1;
+	//dsm($sessionvisits);
+	
+	if ($qrenabled == 1 && quickreg_showcheck() == TRUE) {
+		session_start();
+
+    // check for a number, and if not text, then start the countdown
+ 	  if (isset($_SESSION['visits']) && is_numeric($_SESSION['visits'])) {
+ 	    $_SESSION['visits'] = $_SESSION['visits']+ 1;
+ 	  }
+ 	  else {
+ 	    $_SESSION['visits'] = 1;
+		}
+ 				
+ 	  //registered users computers, auto set to primate, don't see showreg
+ 	  if ($user->uid) {$_SESSION['visits'] = 'primate';}
+ 	 
+ 	  // set number equal to start and stop showing the reg form
+ 		// the registration form will appear
+ 	 	if ($_SESSION['visits'] >= $qrmin && $_SESSION['visits'] <= $qrmax) {
+ 	  	theme('quickreg_theming_files');
+ 	  	$_showreg = TRUE;
+ 	 	}
+ 	}
+	
+	//for test mode
+ 	if ($admin) {
+ 		if ($qrtestmode == 1 && quickreg_showcheck() == TRUE) {
+ 			theme('quickreg_theming_files');
+ 	  	drupal_set_message(t('Quick Reg Module in Test Mode, this computes\'s sessions is set to sessions @sessions <br/>
+ 	  												<em>note: Admins may see the password field, it is not typically visible on the actual reg form.</em>'
+ 	  												, array('@sessions' => $sessionvisits)));
+ 	  	$_showreg = TRUE;
+ 		}
+	}
+}
+
+/**
+ * Form builder; The user registration form.
+ *
+ * @ingroup forms
+ * @see user_register_validate()
+ * @see user_register_submit()
+ */
+function quickreg_register() {
+  global $user;
+
+  
+  $admin = user_access('administer users');
+
+  // If we aren't admin but already logged on, go to the user page instead.
+  //if (!$admin && $user->uid) {
+  //  drupal_goto('linkfever/'. $user->uid);
+  //}
+
+  $form = array();
+
+  // Display the registration form.
+
+  // Merge in the default user edit fields.
+  $form = array_merge($form, user_edit_form($form_state, NULL, NULL, TRUE));
+  if ($admin) {
+    $form['account']['notify'] = array(
+     '#type' => 'checkbox',
+     '#title' => t('Notify user of new account')
+    );
+    // Redirect back to page which initiated the create request;
+    // usually admin/user/user/create.
+    $form['destination'] = array('#type' => 'hidden', '#value' => $_GET['q']);
+  }
+
+  // Create a dummy variable for pass-by-reference parameters.
+  $null = NULL;
+  $extra = _user_forms($null, NULL, NULL, 'register');
+
+  // Remove form_group around default fields if there are no other groups.
+  if (!$extra) {
+    foreach (array('name', 'mail', 'pass', 'status', 'roles', 'notify') as $key) {
+      if (isset($form['account'][$key])) {
+        $form[$key] = $form['account'][$key];
+      }
+    }
+    unset($form['account']);
+  }
+  else {
+    $form = array_merge($form, $extra);
+  }
+
+  if (variable_get('configurable_timezones', 1)) {
+    // Override field ID, so we only change timezone on user registration,
+    // and never touch it on user edit pages.
+    $form['timezone'] = array(
+      '#type' => 'hidden',
+      '#default_value' => variable_get('date_default_timezone', NULL),
+      '#id' => 'edit-user-register-timezone',
+    );
+
+    // Add the JavaScript callback to automatically set the timezone.
+    drupal_add_js('
+// Global Killswitch
+if (Drupal.jsEnabled) {
+  $(document).ready(function() {
+    Drupal.setDefaultTimezone();
+  });
+}', 'inline');
+  }
+  $form['submit'] = array('#type' => 'submit', '#value' => t('Create new account'), '#weight' => 30);
+  $form['#validate'][] = 'user_register_validate';
+    $form['#validate'][] = 'honeytrap_check';
+  
+  return $form;
+}
+
+/**
+ * Submit handler for the user registration form.
+ *
+ * This function is shared by the installation form and the normal registration form,
+ * which is why it can't be in the user.pages.inc file.
+ */
+function quickreg_register_submit($form, &$form_state) {
+  global $base_url;
+  $admin = user_access('administer users');
+  
+  $mail = $form_state['values']['mail'];
+  $name = $form_state['values']['name'];
+  if (!variable_get('user_email_verification', TRUE) || $admin) {
+    $pass = $form_state['values']['pass'];
+  }
+  else {
+    $pass = user_password();
+  };
+  $notify = isset($form_state['values']['notify']) ? $form_state['values']['notify'] : NULL;
+  $from = variable_get('site_mail', ini_get('sendmail_from'));
+  if (isset($form_state['values']['roles'])) {
+    // Remove unset roles.
+    $roles = array_filter($form_state['values']['roles']);
+  }
+  else {
+    $roles = array();
+  }
+
+  if (!$admin && array_intersect(array_keys($form_state['values']), array('uid', 'roles', 'init', 'session', 'status'))) {
+    watchdog('security', 'Detected malicious attempt to alter protected user fields.', array(), WATCHDOG_WARNING);
+    $form_state['redirect'] = 'user/register';
+    return;
+  }
+  // The unset below is needed to prevent these form values from being saved as
+  // user data.
+  unset($form_state['values']['form_token'], $form_state['values']['submit'], $form_state['values']['op'], $form_state['values']['notify'], $form_state['values']['form_id'], $form_state['values']['affiliates'], $form_state['values']['destination']);
+
+  $merge_data = array('pass' => $pass, 'init' => $mail, 'roles' => $roles);
+  if (!$admin) {
+    // Set the user's status because it was not displayed in the form.
+    $merge_data['status'] = variable_get('user_register', 1) == 1;
+  }
+  $account = user_save('', array_merge($form_state['values'], $merge_data));
+  // Terminate if an error occured during user_save().
+  if (!$account) {
+    drupal_set_message(t("Error saving user account."), 'error');
+    $form_state['redirect'] = '';
+    return;
+  }
+  $form_state['user'] = $account;
+
+  watchdog('user', 'New user: %name (%email).', array('%name' => $name, '%email' => $mail), WATCHDOG_NOTICE, l(t('edit'), 'user/'. $account->uid .'/edit'));
+
+  // The first user may login immediately, and receives a customized welcome e-mail.
+  if ($account->uid == 1) {
+    drupal_set_message(t('Welcome to Drupal. You are now logged in as user #1, which gives you full control over your website.'));
+    if (variable_get('user_email_verification', TRUE)) {
+      drupal_set_message(t('</p><p> Your password is <strong>%pass</strong>. You may change your password below.</p>', array('%pass' => $pass)));
+    }
+
+    user_authenticate(array_merge($form_state['values'], $merge_data));
+
+    $form_state['redirect'] = 'user/1/edit';
+    return;
+  }
+  else {
+    // Add plain text password into user account to generate mail tokens.
+    $account->password = $pass;
+    if ($admin && !$notify) {
+      drupal_set_message(t('Created a new user account for <a href="@url">%name</a>. No e-mail has been sent.', array('@url' => url("user/$account->uid"), '%name' => $account->name)));
+    }
+    else if (!variable_get('user_email_verification', TRUE) && $account->status && !$admin) {
+      // No e-mail verification is required, create new user account, and login
+      // user immediately.
+      _user_mail_notify('register_no_approval_required', $account);
+      if (user_authenticate(array_merge($form_state['values'], $merge_data))) {
+        drupal_set_message(t('Registration successful. You are now logged in.'));
+      }
+      $form_state['redirect'] = '';
+      return;
+    }
+    else if ($account->status || $notify) {
+      // Create new user account, no administrator approval required.
+      $op = $notify ? 'register_admin_created' : 'register_no_approval_required';
+      _user_mail_notify($op, $account);
+      if ($notify) {
+        drupal_set_message(t('Password and further instructions have been e-mailed to the new user <a href="@url">%name</a>.', array('@url' => url("user/$account->uid"), '%name' => $account->name)));
+      }
+      else {
+        $_SESSION['visits'] = "primate";
+        auto_subscriptions($account);
+				drupal_set_message(t('Your password and further instructions have been sent to your e-mail address.'));
+        $form_state['redirect'] = '';
+        return;
+      }
+    }
+    else {
+      // Create new user account, administrator approval required.
+      _user_mail_notify('register_pending_approval', $account);
+      drupal_set_message(t('Thank you for applying for an account. Your account is currently pending approval by the site administrator.<br />In the meantime, a welcome message with further instructions has been sent to your e-mail address.'));
+      $form_state['redirect'] = '';
+
+      return;
+
+    }
+  }
+}
+
+function auto_subscriptions($user, $debug='false') {
+  //WallStreetOasis.com Newsletter
+	$news_1 = 35;
+  simplenews_subscribe_user($user->mail, $news_1, $confirm = FALSE);
+	
+	//Wall Street Jobs
+	$news_2 = 78;
+  simplenews_subscribe_user($user->mail, $news_2, $confirm = FALSE);
+	
+	//This Week in Finance
+	$news_3 = 79;
+  simplenews_subscribe_user($user->mail, $news_3, $confirm = FALSE);
+}
+
+function quickreg_form_alter(&$form, &$form_state, $form_id) {
+	
+	switch($form_id) {
+    case 'quickreg_register':
+    $form['#validate'][] = 'honeytrap_check';
+	
+    $form['honeytrap'] = array(
+		  '#type' => 'textfield',
+		  '#title' => 'Leave this field blank',
+		  '#weight' => 0,
+		  '#required' => false,
+		  '#default_value' => ''
+    );
+    break;
+  }
+}
+
+
+function honeytrap_check($form, $form_state) {
+  global $base_url;
+  if (!empty($form_state['values']['honeytrap'] ) ) {
+    watchdog('notice', 'SPAM attempt at '
+.$form['form_id']['#value'].' form', NULL, WATCHDOG_NOTICE);
+    form_set_error('honeytrap', 'We told you to leave this field blank');
+  }
+}
+
+function quickreg_preprocess_page($vars) {
+  global $_showreg;
+  
+  if (quickreg_showcheck() == FALSE) {
+    $_showreg = FALSE;
+  }
+  
+  if ($_showreg == TRUE) {
+  	$form = drupal_get_form('quickreg_register'); //drupal_get_form('quickreg_register');
+  	$title = check_markup(variable_get('qrtitle', ''));
+  	$promotext = check_markup(variable_get('promotext', ''));
+  	
+    $output = '<div id="dmodal">';
+    $output .= theme('quickreg_reg_form', $form, $title, $promotext);
+    $output .= '</div>';
+  
+    $vars['closure'] .= $output;
+  }
+}
+
+
+/*
+ * Implementation of hook_theme()
+ * return an array of X with an array of a template and arguments for the template
+ */
+function quickreg_theme() {
+  return array(
+    // tell Drupal what template to use for the user register form
+    'quickreg_register' => array(
+      'arguments' => array('form' => NULL),
+    ),
+   'quickreg_theming_files' => array(
+      'arguments' => array(),
+    ),
+    'quickreg_reg_form' => array(
+      'template' => 'quickreg-register',
+      'arguments' => array(
+        'form' => NULL,
+        'title' => 'Quick Registration',
+        'promotext' => 'Please use this form for quick site access'
+      ),
+    ),
+  );
+}
+
+function theme_quickreg_theming_files() {
+  $modulepath = drupal_get_path('module', 'quickreg');
+  drupal_add_js($modulepath .'/js/jquery-simplemodal-1.3.5.js');
+  drupal_add_js($modulepath .'/js/quickreg.js');
+  drupal_add_css($modulepath .'/css/quickreg.css');
+
+}
+
+function theme_quickreg_register($form) {
+
+  foreach ($form as $formitemkey => $formitem) {
+    if (is_array($formitem)) {
+      foreach ($formitem as $itemkey => $item) {
+        if ($itemkey == '#type' && $item == 'fieldset') {
+          $form[$formitemkey][$itemkey] = NULL;
+        }
+       	if ($item['#required'] == FALSE && $item['#input'] == TRUE) {
+         	unset($form[$formitemkey][$itemkey]);
+       	}
+      }
+    }
+  };
+
+  return drupal_render($form);
+}
